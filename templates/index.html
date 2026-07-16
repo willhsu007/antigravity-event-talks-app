@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BigQuery 發布說明與推文分享工具</title>
+    <!-- 引入 Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0b0f19 0%, #111827 50%, #1e1b4b 100%);
+            --card-bg: rgba(30, 41, 59, 0.4);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --card-hover-border: rgba(99, 102, 241, 0.4);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-color: #6366f1;
+            --accent-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            --twitter-color: #1d9bf0;
+            --twitter-hover-color: #0c8de4;
+            --success-color: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        /* 背景流光裝飾 */
+        .bg-glow {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(0,0,0,0) 70%);
+            top: -200px;
+            left: -100px;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .bg-glow-2 {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.1) 0%, rgba(0,0,0,0) 70%);
+            bottom: -100px;
+            right: -100px;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        header {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .brand h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.25rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #ffffff, #c7d2fe, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.05em;
+        }
+
+        .brand p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-top: 0.25rem;
+        }
+
+        /* 重新整理按鈕 */
+        .btn-refresh {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--accent-gradient);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-refresh:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+        }
+
+        .btn-refresh:active {
+            transform: translateY(0);
+        }
+
+        .btn-refresh svg {
+            width: 1.25rem;
+            height: 1.25rem;
+            fill: currentColor;
+            transition: transform 0.5s ease;
+        }
+
+        .btn-refresh.loading svg {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* 主容器 */
+        main {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            position: relative;
+        }
+
+        /* 骨架載入動畫 */
+        .skeleton-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .skeleton-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            height: 180px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .skeleton-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.05) 20%, rgba(255,255,255,0.05) 60%, rgba(255,255,255,0) 100%);
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* 卡片設計 */
+        .note-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.75rem;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .note-card:hover {
+            transform: translateY(-4px) scale(1.01);
+            border-color: var(--card-hover-border);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 
+                        0 0 15px rgba(99, 102, 241, 0.1);
+        }
+
+        .note-card.selected {
+            border-color: var(--accent-color);
+            background: rgba(99, 102, 241, 0.08);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+        }
+
+        .note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .note-date {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.35rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .note-date svg {
+            width: 0.85rem;
+            height: 0.85rem;
+            fill: currentColor;
+        }
+
+        .note-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin-top: 0.5rem;
+            line-height: 1.4;
+        }
+
+        .note-content {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            word-break: break-word;
+        }
+
+        /* 渲染內部 HTML (如 code, strong) */
+        .note-content code {
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.1rem 0.3rem;
+            border-radius: 4px;
+            color: #f43f5e;
+            font-size: 0.9em;
+        }
+
+        .note-content a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        .note-content a:hover {
+            text-decoration: underline;
+        }
+
+        .note-content p {
+            margin-bottom: 0.5rem;
+        }
+
+        .note-content ul, .note-content ol {
+            padding-left: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* 卡片底部操作欄 */
+        .card-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 0.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 1rem;
+        }
+
+        .btn-tweet {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--twitter-color);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.25rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .btn-tweet:hover {
+            background: var(--twitter-hover-color);
+            transform: scale(1.03);
+        }
+
+        .btn-tweet svg {
+            width: 1rem;
+            height: 1rem;
+            fill: currentColor;
+        }
+
+        /* 錯誤提示 */
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #f87171;
+            padding: 1rem;
+            border-radius: 12px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        /* 側邊推文預覽抽屜/彈窗 */
+        .tweet-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .tweet-modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .tweet-modal-content {
+            background: #1e293b;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            width: 90%;
+            max-width: 500px;
+            padding: 2rem;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .tweet-modal.active .tweet-modal-content {
+            transform: scale(1);
+        }
+
+        .tweet-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .tweet-modal-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .btn-close-modal {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .tweet-textarea {
+            width: 100%;
+            height: 120px;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1rem;
+            color: white;
+            font-family: inherit;
+            font-size: 0.95rem;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .tweet-textarea:focus {
+            border-color: var(--accent-color);
+        }
+
+        .tweet-char-count {
+            text-align: right;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .tweet-char-count.warning {
+            color: #f59e0b;
+        }
+
+        .tweet-char-count.danger {
+            color: #ef4444;
+        }
+
+        .tweet-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+
+        .btn-cancel {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 0.6rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-cancel:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-send-tweet {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--twitter-color);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-send-tweet:disabled {
+            background: rgba(29, 155, 240, 0.5);
+            cursor: not-allowed;
+        }
+
+        .btn-send-tweet:not(:disabled):hover {
+            background: var(--twitter-hover-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+    <div class="bg-glow-2"></div>
+
+    <header>
+        <div class="brand">
+            <h1>BigQuery Release Notes</h1>
+            <p>即時追蹤 Google BigQuery 更新，精選內容一鍵推文分享</p>
+        </div>
+        <button id="refresh-btn" class="btn-refresh">
+            <svg viewBox="0 0 24 24">
+                <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+            <span>重新整理</span>
+        </button>
+    </header>
+
+    <main id="content-area">
+        <!-- 骨架載入 -->
+        <div class="skeleton-container" id="loading-skeleton">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+        </div>
+    </main>
+
+    <!-- 推文編輯彈窗 -->
+    <div class="tweet-modal" id="tweet-modal">
+        <div class="tweet-modal-content">
+            <div class="tweet-modal-header">
+                <h3 class="tweet-modal-title">準備分享至 X (Twitter)</h3>
+                <button class="btn-close-modal" id="close-modal-btn">&times;</button>
+            </div>
+            <textarea class="tweet-textarea" id="tweet-text" maxlength="280"></textarea>
+            <div class="tweet-char-count" id="tweet-char-count">280 / 280 字元</div>
+            <div class="tweet-actions">
+                <button class="btn-cancel" id="cancel-tweet-btn">取消</button>
+                <button class="btn-send-tweet" id="confirm-tweet-btn">
+                    <svg viewBox="0 0 24 24" style="width: 1rem; height: 1rem; fill: currentColor;">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                    <span>發送推文</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const contentArea = document.getElementById('content-area');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const skeleton = document.getElementById('loading-skeleton');
+        
+        // 彈窗相關元素
+        const tweetModal = document.getElementById('tweet-modal');
+        const tweetTextarea = document.getElementById('tweet-text');
+        const tweetCharCount = document.getElementById('tweet-char-count');
+        const confirmTweetBtn = document.getElementById('confirm-tweet-btn');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const cancelTweetBtn = document.getElementById('cancel-tweet-btn');
+
+        let selectedNotes = null;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchReleaseNotes();
+            
+            refreshBtn.addEventListener('click', () => {
+                fetchReleaseNotes();
+            });
+
+            // 關閉彈窗
+            closeModalBtn.addEventListener('click', closeTweetModal);
+            cancelTweetBtn.addEventListener('click', closeTweetModal);
+            tweetModal.addEventListener('click', (e) => {
+                if (e.target === tweetModal) closeTweetModal();
+            });
+
+            // 推文字數監聽
+            tweetTextarea.addEventListener('input', updateCharCount);
+
+            // 送出推文 (開啟 Web Intent)
+            confirmTweetBtn.addEventListener('click', () => {
+                const text = tweetTextarea.value;
+                const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+                window.open(twitterUrl, '_blank', 'width=600,height=400');
+                closeTweetModal();
+            });
+        });
+
+        // 取得 Release Notes
+        async function fetchReleaseNotes() {
+            showLoading(true);
+            try {
+                const response = await fetch('/api/release-notes');
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    renderNotes(result.data);
+                } else {
+                    renderError(result.message || '無法載入更新日誌');
+                }
+            } catch (error) {
+                renderError('連線伺服器失敗，請稍後再試。');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 顯示/隱藏 Loading 狀態
+        function showLoading(isLoading) {
+            if (isLoading) {
+                refreshBtn.classList.add('loading');
+                refreshBtn.disabled = true;
+                contentArea.innerHTML = '';
+                contentArea.appendChild(skeleton);
+                skeleton.style.display = 'flex';
+            } else {
+                refreshBtn.classList.remove('loading');
+                refreshBtn.disabled = false;
+                skeleton.style.display = 'none';
+            }
+        }
+
+        // 渲染發布說明
+        function renderNotes(notes) {
+            contentArea.innerHTML = '';
+            if (notes.length === 0) {
+                contentArea.innerHTML = `<div class="error-message">目前沒有任何發布說明。</div>`;
+                return;
+            }
+
+            notes.forEach(note => {
+                const card = document.createElement('div');
+                card.className = 'note-card';
+                
+                // 格式化日期
+                const dateStr = formatDate(note.updated);
+                
+                card.innerHTML = `
+                    <div class="note-header">
+                        <div class="note-date">
+                            <svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/></svg>
+                            <span>${dateStr}</span>
+                        </div>
+                    </div>
+                    <h2 class="note-title">${note.title}</h2>
+                    <div class="note-content">${note.content}</div>
+                    <div class="card-actions">
+                        <button class="btn-tweet" data-title="${encodeURIComponent(note.title)}" data-link="${encodeURIComponent(note.link)}">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                            </svg>
+                            <span>分享至 X</span>
+                        </button>
+                    </div>
+                `;
+
+                // 點擊卡片選取
+                card.addEventListener('click', (e) => {
+                    // 如果點到的是連結或分享按鈕本身，不觸發選取效果
+                    if (e.target.closest('a') || e.target.closest('.btn-tweet')) return;
+                    
+                    document.querySelectorAll('.note-card').forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                });
+
+                // 綁定分享按鈕事件
+                const tweetBtn = card.querySelector('.btn-tweet');
+                tweetBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openTweetModal(note.title, note.link);
+                });
+
+                contentArea.appendChild(card);
+            });
+        }
+
+        // 渲染錯誤
+        function renderError(message) {
+            contentArea.innerHTML = `<div class="error-message">錯誤：${message}</div>`;
+        }
+
+        // 格式化日期格式 (將 ISO 格式轉換成可讀格式)
+        function formatDate(isoString) {
+            if (!isoString) return '未知日期';
+            try {
+                const date = new Date(isoString);
+                return date.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
+            } catch (e) {
+                return isoString;
+            }
+        }
+
+        // 開啟推文編輯彈窗
+        function openTweetModal(title, link) {
+            // 清理 HTML tag
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = title;
+            const plainTitle = tempDiv.textContent || tempDiv.innerText || "";
+            
+            // 預設推文內容
+            const tweetTemplate = `🔥 Google BigQuery 更新：${plainTitle}\n\n詳細內容請見：${link}\n#BigQuery #GoogleCloud`;
+            
+            tweetTextarea.value = tweetTemplate;
+            updateCharCount();
+            
+            tweetModal.classList.add('active');
+            tweetTextarea.focus();
+        }
+
+        // 關閉推文編輯彈窗
+        function closeTweetModal() {
+            tweetModal.classList.remove('active');
+        }
+
+        // 更新字數統計
+        function updateCharCount() {
+            const count = tweetTextarea.value.length;
+            const remaining = 280 - count;
+            tweetCharCount.textContent = `${count} / 280 字元`;
+            
+            if (remaining < 0) {
+                tweetCharCount.className = 'tweet-char-count danger';
+                confirmTweetBtn.disabled = true;
+            } else if (remaining < 30) {
+                tweetCharCount.className = 'tweet-char-count warning';
+                confirmTweetBtn.disabled = false;
+            } else {
+                tweetCharCount.className = 'tweet-char-count';
+                confirmTweetBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
