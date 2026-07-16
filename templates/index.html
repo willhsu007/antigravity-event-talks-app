@@ -91,6 +91,13 @@
             margin-top: 0.25rem;
         }
 
+        /* 按鈕群組 */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
         /* 重新整理按鈕 */
         .btn-refresh {
             display: flex;
@@ -126,6 +133,32 @@
 
         .btn-refresh.loading svg {
             animation: spin 1s linear infinite;
+        }
+
+        /* 次要按鈕樣式 */
+        .btn-secondary {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary:active {
+            transform: translateY(0);
         }
 
         @keyframes spin {
@@ -279,6 +312,7 @@
         .card-actions {
             display: flex;
             justify-content: flex-end;
+            gap: 0.75rem;
             margin-top: 0.5rem;
             border-top: 1px solid rgba(255, 255, 255, 0.05);
             padding-top: 1rem;
@@ -305,6 +339,38 @@
         }
 
         .btn-tweet svg {
+            width: 1rem;
+            height: 1rem;
+            fill: currentColor;
+        }
+
+        .btn-copy {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            padding: 0.6rem 1.25rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-copy:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .btn-copy.copied {
+            background: var(--success-color);
+            border-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-copy svg {
             width: 1rem;
             height: 1rem;
             fill: currentColor;
@@ -468,12 +534,20 @@
             <h1>BigQuery Release Notes</h1>
             <p>即時追蹤 Google BigQuery 更新，精選內容一鍵推文分享</p>
         </div>
-        <button id="refresh-btn" class="btn-refresh">
-            <svg viewBox="0 0 24 24">
-                <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-            </svg>
-            <span>重新整理</span>
-        </button>
+        <div class="header-actions">
+            <button id="export-csv-btn" class="btn-secondary" style="display: none;">
+                <svg viewBox="0 0 24 24" style="width: 1.25rem; height: 1.25rem; fill: currentColor;">
+                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+                </svg>
+                <span>匯出 CSV</span>
+            </button>
+            <button id="refresh-btn" class="btn-refresh">
+                <svg viewBox="0 0 24 24">
+                    <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                </svg>
+                <span>重新整理</span>
+            </button>
+        </div>
     </header>
 
     <main id="content-area">
@@ -509,6 +583,7 @@
     <script>
         const contentArea = document.getElementById('content-area');
         const refreshBtn = document.getElementById('refresh-btn');
+        const exportCsvBtn = document.getElementById('export-csv-btn');
         const skeleton = document.getElementById('loading-skeleton');
         
         // 彈窗相關元素
@@ -519,7 +594,7 @@
         const closeModalBtn = document.getElementById('close-modal-btn');
         const cancelTweetBtn = document.getElementById('cancel-tweet-btn');
 
-        let selectedNotes = null;
+        let currentNotes = [];
 
         // 初始化
         document.addEventListener('DOMContentLoaded', () => {
@@ -527,6 +602,11 @@
             
             refreshBtn.addEventListener('click', () => {
                 fetchReleaseNotes();
+            });
+
+            // 匯出 CSV 按鈕事件
+            exportCsvBtn.addEventListener('click', () => {
+                exportToCSV();
             });
 
             // 關閉彈窗
@@ -556,12 +636,17 @@
                 const result = await response.json();
                 
                 if (result.status === 'success') {
-                    renderNotes(result.data);
+                    currentNotes = result.data;
+                    renderNotes(currentNotes);
+                    // 顯示/隱藏 CSV 匯出按鈕
+                    exportCsvBtn.style.display = currentNotes.length > 0 ? 'flex' : 'none';
                 } else {
                     renderError(result.message || '無法載入更新日誌');
+                    exportCsvBtn.style.display = 'none';
                 }
             } catch (error) {
                 renderError('連線伺服器失敗，請稍後再試。');
+                exportCsvBtn.style.display = 'none';
             } finally {
                 showLoading(false);
             }
@@ -572,12 +657,14 @@
             if (isLoading) {
                 refreshBtn.classList.add('loading');
                 refreshBtn.disabled = true;
+                exportCsvBtn.disabled = true;
                 contentArea.innerHTML = '';
                 contentArea.appendChild(skeleton);
                 skeleton.style.display = 'flex';
             } else {
                 refreshBtn.classList.remove('loading');
                 refreshBtn.disabled = false;
+                exportCsvBtn.disabled = false;
                 skeleton.style.display = 'none';
             }
         }
@@ -590,7 +677,7 @@
                 return;
             }
 
-            notes.forEach(note => {
+            notes.forEach((note, index) => {
                 const card = document.createElement('div');
                 card.className = 'note-card';
                 
@@ -607,6 +694,12 @@
                     <h2 class="note-title">${note.title}</h2>
                     <div class="note-content">${note.content}</div>
                     <div class="card-actions">
+                        <button class="btn-copy">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                            </svg>
+                            <span>複製內容</span>
+                        </button>
                         <button class="btn-tweet" data-title="${encodeURIComponent(note.title)}" data-link="${encodeURIComponent(note.link)}">
                             <svg viewBox="0 0 24 24">
                                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
@@ -618,11 +711,18 @@
 
                 // 點擊卡片選取
                 card.addEventListener('click', (e) => {
-                    // 如果點到的是連結或分享按鈕本身，不觸發選取效果
-                    if (e.target.closest('a') || e.target.closest('.btn-tweet')) return;
+                    // 如果點到的是連結或任何按鈕本身，不觸發選取效果
+                    if (e.target.closest('a') || e.target.closest('.btn-tweet') || e.target.closest('.btn-copy')) return;
                     
                     document.querySelectorAll('.note-card').forEach(c => c.classList.remove('selected'));
                     card.classList.add('selected');
+                });
+
+                // 綁定複製按鈕事件
+                const copyBtn = card.querySelector('.btn-copy');
+                copyBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    copyToClipboard(note, copyBtn);
                 });
 
                 // 綁定分享按鈕事件
@@ -634,6 +734,72 @@
 
                 contentArea.appendChild(card);
             });
+        }
+
+        // 複製到剪貼簿功能
+        function copyToClipboard(note, button) {
+            // 清理 HTML tag
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = note.content;
+            const plainContent = (tempDiv.textContent || tempDiv.innerText || "").trim();
+            const dateStr = formatDate(note.updated);
+            
+            const textToCopy = `📅 發布日期: ${dateStr}\n📌 標題: ${note.title}\n🔗 連結: ${note.link}\n\n📝 詳細更新內容:\n${plainContent}`;
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const span = button.querySelector('span');
+                const originalText = span.textContent;
+                button.classList.add('copied');
+                span.textContent = '已複製！';
+                
+                setTimeout(() => {
+                    button.classList.remove('copied');
+                    span.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('複製失敗:', err);
+                alert('複製失敗，請手動選取複製。');
+            });
+        }
+
+        // 匯出 CSV 功能
+        function exportToCSV() {
+            if (!currentNotes || currentNotes.length === 0) return;
+            
+            // CSV 標頭
+            const headers = ['發布日期', '標題', '詳細內容', '連結'];
+            
+            const rows = currentNotes.map(note => {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = note.content;
+                const plainContent = (tempDiv.textContent || tempDiv.innerText || "").trim();
+                
+                return [
+                    formatDate(note.updated),
+                    note.title,
+                    plainContent,
+                    note.link
+                ].map(field => {
+                    // 處理 CSV 的雙引號與逗號，轉義雙引號
+                    const escaped = field.replace(/"/g, '""');
+                    return `"${escaped}"`;
+                }).join(',');
+            });
+            
+            // 加上 BOM (\ufeff) 避免中文在 Excel 開啟時產生亂碼
+            const csvContent = "\ufeff" + [headers.join(','), ...rows].join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `BigQuery_Release_Notes_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         // 渲染錯誤
