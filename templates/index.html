@@ -221,6 +221,68 @@
             position: relative;
         }
 
+        /* 搜尋框樣式 */
+        .search-container {
+            display: flex;
+            align-items: center;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 0.6rem 1rem;
+            gap: 0.75rem;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        .search-container:focus-within {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
+        }
+
+        .search-icon {
+            width: 1.25rem;
+            height: 1.25rem;
+            fill: var(--text-secondary);
+            transition: fill 0.3s ease;
+        }
+
+        .search-container:focus-within .search-icon {
+            fill: var(--accent-color);
+        }
+
+        .search-input {
+            background: none;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-size: 1rem;
+            width: 100%;
+            font-family: inherit;
+        }
+
+        .search-input::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.6;
+        }
+
+        .clear-search-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0 0.25rem;
+            transition: color 0.2s;
+            display: none;
+        }
+
+        .clear-search-btn:hover {
+            color: var(--text-primary);
+        }
+
         /* 骨架載入動畫 */
         .skeleton-container {
             display: flex;
@@ -660,6 +722,15 @@
     </header>
 
     <main id="content-area">
+        <!-- 搜尋列 -->
+        <div class="search-container" id="search-bar-wrap" style="display: none;">
+            <svg viewBox="0 0 24 24" class="search-icon">
+                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+            <input type="text" id="search-input" class="search-input" placeholder="搜尋發布說明標題或內容..." autocomplete="off">
+            <button id="clear-search-btn" class="clear-search-btn">&times;</button>
+        </div>
+
         <!-- 骨架載入 -->
         <div class="skeleton-container" id="loading-skeleton">
             <div class="skeleton-card"></div>
@@ -698,6 +769,11 @@
         const moonIcon = document.getElementById('moon-icon');
         const skeleton = document.getElementById('loading-skeleton');
         
+        // 搜尋相關元素
+        const searchBarWrap = document.getElementById('search-bar-wrap');
+        const searchInput = document.getElementById('search-input');
+        const clearSearchBtn = document.getElementById('clear-search-btn');
+
         // 彈窗相關元素
         const tweetModal = document.getElementById('tweet-modal');
         const tweetTextarea = document.getElementById('tweet-text');
@@ -727,6 +803,18 @@
             // 主題切換事件
             themeToggleBtn.addEventListener('click', () => {
                 toggleTheme();
+            });
+
+            // 搜尋輸入監聽
+            searchInput.addEventListener('input', () => {
+                handleSearch();
+            });
+
+            // 清除搜尋按鈕點擊
+            clearSearchBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                handleSearch();
+                searchInput.focus();
             });
 
             // 關閉彈窗
@@ -776,9 +864,36 @@
             }
         }
 
+        // 前端搜尋過濾邏輯
+        function handleSearch() {
+            const query = searchInput.value.trim().toLowerCase();
+            
+            // 顯示/隱藏清除按鈕
+            clearSearchBtn.style.display = query.length > 0 ? 'block' : 'none';
+            
+            if (query.length === 0) {
+                renderNotes(currentNotes);
+                return;
+            }
+            
+            const filtered = currentNotes.filter(note => {
+                const titleMatch = note.title.toLowerCase().includes(query);
+                const contentMatch = note.content.toLowerCase().includes(query);
+                return titleMatch || contentMatch;
+            });
+            
+            renderNotes(filtered, true);
+        }
+
         // 取得 Release Notes
         async function fetchReleaseNotes() {
             showLoading(true);
+            
+            // 重設搜尋狀態
+            searchInput.value = '';
+            clearSearchBtn.style.display = 'none';
+            searchBarWrap.style.display = 'none';
+
             try {
                 const response = await fetch('/api/release-notes');
                 const result = await response.json();
@@ -786,15 +901,24 @@
                 if (result.status === 'success') {
                     currentNotes = result.data;
                     renderNotes(currentNotes);
-                    // 顯示/隱藏 CSV 匯出按鈕
-                    exportCsvBtn.style.display = currentNotes.length > 0 ? 'flex' : 'none';
+                    
+                    // 顯示/隱藏 CSV 與搜尋框
+                    if (currentNotes.length > 0) {
+                        exportCsvBtn.style.display = 'flex';
+                        searchBarWrap.style.display = 'flex';
+                    } else {
+                        exportCsvBtn.style.display = 'none';
+                        searchBarWrap.style.display = 'none';
+                    }
                 } else {
                     renderError(result.message || '無法載入更新日誌');
                     exportCsvBtn.style.display = 'none';
+                    searchBarWrap.style.display = 'none';
                 }
             } catch (error) {
                 renderError('連線伺服器失敗，請稍後再試。');
                 exportCsvBtn.style.display = 'none';
+                searchBarWrap.style.display = 'none';
             } finally {
                 showLoading(false);
             }
@@ -806,7 +930,9 @@
                 refreshBtn.classList.add('loading');
                 refreshBtn.disabled = true;
                 exportCsvBtn.disabled = true;
-                contentArea.innerHTML = '';
+                
+                // 保留搜尋框，但移除舊卡片，顯示 skeleton
+                document.querySelectorAll('.note-card, .error-message').forEach(el => el.remove());
                 contentArea.appendChild(skeleton);
                 skeleton.style.display = 'flex';
             } else {
@@ -818,10 +944,16 @@
         }
 
         // 渲染發布說明
-        function renderNotes(notes) {
-            contentArea.innerHTML = '';
+        // isSearching: 標記是否為搜尋過濾結果，用於顯示無結果的提示
+        function renderNotes(notes, isSearching = false) {
+            // 移除舊的卡片與錯誤訊息
+            document.querySelectorAll('.note-card, .error-message').forEach(el => el.remove());
+
             if (notes.length === 0) {
-                contentArea.innerHTML = `<div class="error-message">目前沒有任何發布說明。</div>`;
+                const emptyMsg = document.createElement('div');
+                emptyMsg.className = 'error-message';
+                emptyMsg.textContent = isSearching ? '沒有找到符合搜尋條件的發布說明。' : '目前沒有任何發布說明。';
+                contentArea.appendChild(emptyMsg);
                 return;
             }
 
@@ -952,7 +1084,13 @@
 
         // 渲染錯誤
         function renderError(message) {
-            contentArea.innerHTML = `<div class="error-message">錯誤：${message}</div>`;
+            // 移除舊的卡片與錯誤訊息
+            document.querySelectorAll('.note-card, .error-message').forEach(el => el.remove());
+            
+            const errDiv = document.createElement('div');
+            errDiv.className = 'error-message';
+            errDiv.textContent = `錯誤：${message}`;
+            contentArea.appendChild(errDiv);
         }
 
         // 格式化日期格式 (將 ISO 格式轉換成可讀格式)
